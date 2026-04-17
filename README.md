@@ -21,8 +21,14 @@ npm install
 npm run dev
 ```
 
-Åpne [http://localhost:5173](http://localhost:5173) i nettleseren.
-
+### Veldig enkel tutorial:
+For å kjøre appen:                  
+  1. Installer https://nodejs.org (last ned og kjør installeren)
+  2. git clone <repo-url> 
+  3. cd tobias_klasserom 
+  4. npm install 
+  5. npm run dev → åpne localhost:5173  
+  6. Åpne [http://localhost:5173] i nettleseren.
 ---
 
 ## Bruk
