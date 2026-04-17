@@ -1,4 +1,4 @@
-export default function SessionHistory({ sessions, students, onDelete, onLoad }) {
+export default function SessionHistory({ sessions, students, onDelete, onDeleteAll, onLoad }) {
   if (sessions.length === 0) {
     return (
       <div style={{
@@ -15,8 +15,29 @@ export default function SessionHistory({ sessions, students, onDelete, onLoad })
   const studentMap = {};
   for (const s of students) studentMap[s.id] = s;
 
+  const roundsLeft = Math.max(0, 14 - sessions.length);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '6px 0 8px', borderBottom: '1px solid var(--border)',
+      }}>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          {sessions.length} økt{sessions.length !== 1 ? 'er' : ''} lagret
+          {' · '}
+          <span style={{ color: roundsLeft > 0 ? 'var(--success)' : 'var(--warning)', fontWeight: 500 }}>
+            {roundsLeft > 0 ? `~${roundsLeft} unike igjen` : 'Alle par brukt opp'}
+          </span>
+        </div>
+        <button
+          className="btn-danger"
+          onClick={onDeleteAll}
+          style={{ fontSize: 11, padding: '4px 8px' }}
+        >
+          Slett alle
+        </button>
+      </div>
       {sessions.map(session => {
         const groupMap = {};
         for (const a of session.assignments) {

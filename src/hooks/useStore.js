@@ -130,6 +130,7 @@ export function useStore() {
   }, [assignment, desks]);
 
   const deleteSession = useCallback((id) => setSessions(prev => prev.filter(s => s.id !== id)), []);
+  const clearAllSessions = useCallback(() => setSessions([]), []);
 
   const loadSession = useCallback((sessionId) => {
     const session = sessions.find(s => s.id === sessionId);
@@ -198,7 +199,7 @@ export function useStore() {
     classes, activeClassId, activeClass,
     addStudent, removeStudent,
     addDeskAt, removeDesk, moveDeskToCell,
-    doAssignSeats, clearAssignment, saveSession, deleteSession, loadSession,
+    doAssignSeats, clearAssignment, saveSession, deleteSession, clearAllSessions, loadSession,
     resetLayout, swapStudents,
     saveClass, updateClass, loadClass, deleteClass,
   };

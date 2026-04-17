@@ -131,6 +131,7 @@ export default function App() {
               sessions={store.sessions}
               students={store.students}
               onDelete={store.deleteSession}
+              onDeleteAll={store.clearAllSessions}
               onLoad={(id) => { store.loadSession(id); setTab(TAB_STUDENTS); }}
             />
           )}
