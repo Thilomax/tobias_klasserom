@@ -19,7 +19,7 @@ export default function App() {
   const [assigning, setAssigning] = useState(false);
   const [tool, setTool] = useState('draw');
 
-  const groups = computeGroups(store.desks);
+  const groups = computeGroups(store.desks, store.manualGroups);
   const conflictCount = store.assignment
     ? getConflictCount(store.assignment, groups, store.sessions)
     : 0;
@@ -184,6 +184,7 @@ export default function App() {
                 {[
                   { id: 'draw', label: 'Tegn', title: 'Dra over tomme celler for å plassere pulter' },
                   { id: 'erase', label: 'Slett', title: 'Dra over pulter for å fjerne dem' },
+                  { id: 'group', label: 'Grupper', title: 'Velg pulter og definer egne grupper, f.eks. vertikalt' },
                 ].map(t => (
                   <button
                     key={t.id}
@@ -226,7 +227,9 @@ export default function App() {
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
                 {store.students.length === 0
                   ? 'Legg til elever for å starte'
-                  : 'Dra for å tegne · Hover for å slette'}
+                  : tool === 'group'
+                    ? 'Klikk pulter for å velge · definer gruppe manuelt'
+                    : 'Dra for å tegne · Hover for å slette'}
               </div>
             )}
           </div>
@@ -241,11 +244,14 @@ export default function App() {
             desks={store.desks}
             students={store.students}
             assignment={store.assignment}
+            manualGroups={store.manualGroups}
             tool={tool}
             onAddDeskAt={store.addDeskAt}
             onDeskMove={store.moveDeskToCell}
             onSwap={store.swapStudents}
             onRemoveDesk={store.removeDesk}
+            onDefineGroup={store.defineManualGroup}
+            onRemoveGroups={store.removeManualGroups}
           />
         </div>
       </div>

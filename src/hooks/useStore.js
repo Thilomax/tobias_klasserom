@@ -14,6 +14,7 @@ export function useStore() {
   const [desks, setDesks] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [assignment, setAssignment] = useState(null);
+  const [manualGroups, setManualGroups] = useState([]);
   const [settings, setSettings] = useState({ rows: 5, desksPerGroup: 3 });
   const [classes, setClasses] = useState([]);
   const [activeClassId, setActiveClassId] = useState(null);
@@ -27,6 +28,7 @@ export function useStore() {
       setDesks(saved.desks?.length ? saved.desks : createDefaultDesks(5, 3));
       setSessions(saved.sessions || []);
       setAssignment(saved.assignment || null);
+      setManualGroups(saved.manualGroups || []);
       setSettings(saved.settings || { rows: 5, desksPerGroup: 3 });
       setClasses(saved.classes || []);
       setActiveClassId(saved.activeClassId || null);
@@ -43,9 +45,9 @@ export function useStore() {
     if (!initialized) return;
     clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(() => {
-      saveState(STORAGE_KEY, { students, desks, sessions, assignment, settings, classes, activeClassId });
+      saveState(STORAGE_KEY, { students, desks, sessions, assignment, manualGroups, settings, classes, activeClassId });
     }, 300);
-  }, [students, desks, sessions, assignment, settings, classes, activeClassId, initialized]);
+  }, [students, desks, sessions, assignment, manualGroups, settings, classes, activeClassId, initialized]);
 
   // ── Students ──────────────────────────────────────────────────────────────
   const addStudent = useCallback((name) => {
@@ -85,6 +87,9 @@ export function useStore() {
       delete next[id];
       return Object.keys(next).length ? next : null;
     });
+    setManualGroups(prev => prev
+      .map(g => ({ ...g, deskIds: g.deskIds.filter(did => did !== id) }))
+      .filter(g => g.deskIds.length >= 2));
   }, []);
 
   const moveDeskToCell = useCallback((id, gridCol, gridRow) => {
@@ -105,15 +110,15 @@ export function useStore() {
   // ── Seating ───────────────────────────────────────────────────────────────
   const doAssignSeats = useCallback(() => {
     if (students.length === 0) return;
-    const groups = computeGroups(desks);
+    const groups = computeGroups(desks, manualGroups);
     setAssignment(assignSeats(students, groups, sessions));
-  }, [students, desks, sessions]);
+  }, [students, desks, manualGroups, sessions]);
 
   const clearAssignment = useCallback(() => setAssignment(null), []);
 
   const saveSession = useCallback(() => {
     if (!assignment) return;
-    const groups = computeGroups(desks);
+    const groups = computeGroups(desks, manualGroups);
     const groupByDesk = {};
     for (const g of groups) for (const did of g.deskIds) groupByDesk[did] = g.id;
     const list = Object.entries(assignment).map(([deskId, studentId]) => ({
@@ -127,7 +132,7 @@ export function useStore() {
     };
     setSessions(prev => [newSession, ...prev]);
     setAssignment(null);
-  }, [assignment, desks]);
+  }, [assignment, desks, manualGroups]);
 
   const deleteSession = useCallback((id) => setSessions(prev => prev.filter(s => s.id !== id)), []);
   const clearAllSessions = useCallback(() => setSessions([]), []);
@@ -145,8 +150,26 @@ export function useStore() {
     const s = newSettings || settings;
     setDesks(createDefaultDesks(s.rows, s.desksPerGroup));
     setAssignment(null);
+    setManualGroups([]);
     if (newSettings) setSettings(newSettings);
   }, [settings]);
+
+  // ── Manual groups ─────────────────────────────────────────────────────────
+  const defineManualGroup = useCallback((deskIds) => {
+    if (deskIds.length < 2) return;
+    setManualGroups(prev => {
+      const idSet = new Set(deskIds);
+      const cleaned = prev
+        .map(g => ({ ...g, deskIds: g.deskIds.filter(id => !idSet.has(id)) }))
+        .filter(g => g.deskIds.length >= 2);
+      return [...cleaned, { id: `m${makeId()}`, deskIds: [...deskIds].sort() }];
+    });
+  }, []);
+
+  const removeManualGroups = useCallback((groupIds) => {
+    const idSet = new Set(groupIds);
+    setManualGroups(prev => prev.filter(g => !idSet.has(g.id)));
+  }, []);
 
   const swapStudents = useCallback((deskIdA, deskIdB) => {
     setAssignment(prev => {
@@ -195,12 +218,13 @@ export function useStore() {
   const activeClass = classes.find(c => c.id === activeClassId) || null;
 
   return {
-    students, desks, sessions, assignment, settings,
+    students, desks, sessions, assignment, manualGroups, settings,
     classes, activeClassId, activeClass,
     addStudent, removeStudent,
     addDeskAt, removeDesk, moveDeskToCell,
     doAssignSeats, clearAssignment, saveSession, deleteSession, clearAllSessions, loadSession,
     resetLayout, swapStudents,
+    defineManualGroup, removeManualGroups,
     saveClass, updateClass, loadClass, deleteClass,
   };
 }

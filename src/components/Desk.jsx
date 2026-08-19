@@ -26,12 +26,12 @@ function lastNameDisplay(lastName, hasDuplicate) {
 
 export default function Desk({
   x, y, student, tool, hasDuplicate,
-  isSwapSource, isDragging, isBeingSwapped,
+  isSwapSource, isSelected, isDragging, isBeingSwapped,
   hasAssignment, onRemove,
 }) {
   const [hovered, setHovered] = useState(false);
 
-  const highlighted = isSwapSource || isBeingSwapped;
+  const highlighted = isSwapSource || isBeingSwapped || isSelected;
   const showDelete = hovered && !hasAssignment && !isDragging && tool === 'draw';
   const eraseHover = hovered && !hasAssignment && tool === 'erase';
 

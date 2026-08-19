@@ -1,9 +1,10 @@
-export const CANVAS_W = 900;
-export const CANVAS_H = 490;
-export const GRID_COLS = 10;
-export const GRID_ROWS = 7;
-export const CELL_W = CANVAS_W / GRID_COLS; // 90
-export const CELL_H = CANVAS_H / GRID_ROWS; // 70
+// One extra row/column of margin on every edge compared to the original room
+export const GRID_COLS = 12;
+export const GRID_ROWS = 9;
+export const CELL_W = 90;
+export const CELL_H = 70;
+export const CANVAS_W = GRID_COLS * CELL_W;
+export const CANVAS_H = GRID_ROWS * CELL_H;
 export const DESK_W = 76;
 export const DESK_H = 54;
 
@@ -21,15 +22,28 @@ export function mouseToCell(mouseX, mouseY) {
   };
 }
 
-// Groups = horizontal clusters of consecutive-column desks in the same row
-export function computeGroups(desks) {
+// Groups = horizontal clusters of consecutive-column desks in the same row,
+// unless overridden by a manually defined group (e.g. a vertical cluster).
+// Manually grouped desks are excluded from the automatic row clustering.
+export function computeGroups(desks, manualGroups = []) {
+  const deskIds = new Set(desks.map(d => d.id));
+  const manualDeskIds = new Set();
+  const groups = [];
+
+  for (const g of manualGroups) {
+    const ids = g.deskIds.filter(id => deskIds.has(id)).sort();
+    if (ids.length < 2) continue;
+    for (const id of ids) manualDeskIds.add(id);
+    groups.push({ id: g.id, deskIds: ids });
+  }
+
   const byRow = {};
   for (const desk of desks) {
+    if (manualDeskIds.has(desk.id)) continue;
     if (!byRow[desk.gridRow]) byRow[desk.gridRow] = [];
     byRow[desk.gridRow].push(desk);
   }
 
-  const groups = [];
   for (const rowDesks of Object.values(byRow)) {
     rowDesks.sort((a, b) => a.gridCol - b.gridCol);
     let cluster = [rowDesks[0]];
@@ -46,6 +60,15 @@ export function computeGroups(desks) {
     groups.push({ id: ids.join('_'), deskIds: ids });
   }
   return groups;
+}
+
+// Stable color per group id, used to outline manually defined groups
+const GROUP_COLORS = ['#7C5CFC', '#E8590C', '#0CA678', '#1971C2', '#D6336C', '#F08C00', '#5F3DC4'];
+
+export function colorForGroupId(id) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return GROUP_COLORS[hash % GROUP_COLORS.length];
 }
 
 export function createDefaultDesks(rows = 5, desksPerGroup = 3) {
