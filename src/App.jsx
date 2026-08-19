@@ -5,6 +5,7 @@ import StudentList from './components/StudentList.jsx';
 import SessionHistory from './components/SessionHistory.jsx';
 import ClassList from './components/ClassList.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
+import RoomTemplateMenu from './components/RoomTemplateMenu.jsx';
 import { getConflictCount } from './utils/seating.js';
 import { computeGroups } from './utils/layout.js';
 
@@ -120,16 +121,18 @@ export default function App() {
               classes={store.classes}
               activeClassId={store.activeClassId}
               students={store.students}
+              sessions={store.sessions}
               onSave={(name) => { store.saveClass(name); setTab(TAB_STUDENTS); }}
-              onUpdate={store.updateClass}
               onLoad={(id) => { store.loadClass(id); setTab(TAB_STUDENTS); }}
               onDelete={store.deleteClass}
+              onNewClass={(name, roster) => { store.startNewClass(name, roster); setTab(TAB_STUDENTS); }}
             />
           )}
           {tab === TAB_HISTORY && (
             <SessionHistory
               sessions={store.sessions}
               students={store.students}
+              groups={groups}
               onDelete={store.deleteSession}
               onDeleteAll={store.clearAllSessions}
               onLoad={(id) => { store.loadSession(id); setTab(TAB_STUDENTS); }}
@@ -203,6 +206,14 @@ export default function App() {
                   >{t.label}</button>
                 ))}
               </div>
+
+              <RoomTemplateMenu
+                roomTemplates={store.roomTemplates}
+                deskCount={store.desks.length}
+                onSaveTemplate={store.saveRoomTemplate}
+                onLoadTemplate={store.loadRoomTemplate}
+                onDeleteTemplate={store.deleteRoomTemplate}
+              />
             </>
           )}
 

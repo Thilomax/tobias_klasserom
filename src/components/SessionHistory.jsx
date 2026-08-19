@@ -1,4 +1,6 @@
-export default function SessionHistory({ sessions, students, onDelete, onDeleteAll, onLoad }) {
+import { buildUsedPairs } from '../utils/seating.js';
+
+export default function SessionHistory({ sessions, students, groups, onDelete, onDeleteAll, onLoad }) {
   if (sessions.length === 0) {
     return (
       <div style={{
@@ -15,7 +17,21 @@ export default function SessionHistory({ sessions, students, onDelete, onDeleteA
   const studentMap = {};
   for (const s of students) studentMap[s.id] = s;
 
-  const roundsLeft = Math.max(0, 14 - sessions.length);
+  // How many more zero-repeat rounds are left, given the *current* room
+  // layout (including manually defined groups) — not a fixed guess. Each
+  // round uses up one new pair per group of size k (C(k,2) pairs); once the
+  // roster's remaining unused pairs can't fill another full round, we're out.
+  const totalPossiblePairs = students.length * (students.length - 1) / 2;
+  const currentIds = new Set(students.map(s => s.id));
+  const usedPairs = buildUsedPairs(sessions);
+  let usedPairsInRoster = 0;
+  for (const key of usedPairs) {
+    const [a, b] = key.split('|');
+    if (currentIds.has(a) && currentIds.has(b)) usedPairsInRoster++;
+  }
+  const pairsPerRound = groups.reduce((sum, g) => sum + g.deskIds.length * (g.deskIds.length - 1) / 2, 0);
+  const remainingPairs = Math.max(0, totalPossiblePairs - usedPairsInRoster);
+  const roundsLeft = pairsPerRound > 0 ? Math.floor(remainingPairs / pairsPerRound) : 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>

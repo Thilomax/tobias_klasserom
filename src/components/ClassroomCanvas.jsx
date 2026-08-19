@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import {
   CANVAS_W, CANVAS_H, CELL_W, CELL_H, DESK_W, DESK_H,
-  cellToXY, mouseToCell, colorForGroupId,
+  cellToXY, mouseToCell, colorForGroupIndex, colorForGroupId,
 } from '../utils/layout.js';
 import Desk from './Desk.jsx';
 
@@ -196,7 +196,7 @@ export default function ClassroomCanvas({
         {manualGroups.flatMap(group => {
           const memberDesks = desks.filter(d => group.deskIds.includes(d.id));
           if (memberDesks.length < 2) return [];
-          const color = colorForGroupId(group.id);
+          const color = group.colorIndex != null ? colorForGroupIndex(group.colorIndex) : colorForGroupId(group.id);
           // One highlight per member desk (not a bounding box) so an L-shaped
           // or otherwise non-rectangular group never visually swallows a
           // neighboring desk that isn't actually part of it.
@@ -209,9 +209,9 @@ export default function ClassroomCanvas({
                 style={{
                   position: 'absolute',
                   left: x - 6, top: y - 6, width: DESK_W + 12, height: DESK_H + 12,
-                  border: `2px dashed ${color}`,
+                  border: `3px dashed ${color}`,
                   borderRadius: 10,
-                  background: `${color}14`,
+                  background: `${color}1A`,
                   pointerEvents: 'none',
                   zIndex: 0,
                 }}

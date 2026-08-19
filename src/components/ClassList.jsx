@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import NewClassModal from './NewClassModal.jsx';
 
-export default function ClassList({ classes, activeClassId, students, onSave, onUpdate, onLoad, onDelete }) {
+export default function ClassList({ classes, activeClassId, students, sessions, onSave, onLoad, onDelete, onNewClass }) {
   const [newName, setNewName] = useState('');
   const [error, setError] = useState('');
+  const [showNewClassModal, setShowNewClassModal] = useState(false);
 
   function handleSave(e) {
     e.preventDefault();
@@ -16,52 +18,70 @@ export default function ClassList({ classes, activeClassId, students, onSave, on
     setError('');
   }
 
+  function handleCreateClass(name, roster) {
+    // Only ad-hoc, never-saved work is at risk here — an already-active
+    // class stays exactly as it was, safely stored under its own name.
+    const hasUnsavedAdHocWork = !activeClassId && (students.length > 0 || sessions.length > 0);
+    if (hasUnsavedAdHocWork && !window.confirm(
+      'Opprette ny klasse? Nåværende elevliste og historikk som ikke er lagret vil gå tapt.'
+    )) return;
+    onNewClass(name, roster);
+    setShowNewClassModal(false);
+  }
+
   const activeClass = classes.find(c => c.id === activeClassId);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
 
-      {/* Save current students as new class */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 2 }}>
-          Lagre nåværende elevliste
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            type="text"
-            value={newName}
-            onChange={e => { setNewName(e.target.value); setError(''); }}
-            onKeyDown={e => e.key === 'Enter' && handleSave(e)}
-            placeholder="Klassenavn, f.eks. 10A…"
-            maxLength={30}
-            style={{ flex: 1 }}
-            disabled={students.length === 0}
-          />
-          <button
-            className="btn-primary"
-            onClick={handleSave}
-            disabled={!newName.trim() || students.length === 0}
-          >
-            Lagre
-          </button>
-        </div>
-        {error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</div>}
-        {students.length === 0 && (
-          <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-            Legg til elever først
-          </div>
-        )}
-      </div>
+      <button
+        className="btn-secondary"
+        onClick={() => setShowNewClassModal(true)}
+        style={{ fontSize: 13 }}
+      >
+        + Lag ny klasse
+      </button>
 
-      {/* Update active class */}
-      {activeClass && (
-        <button
-          className="btn-secondary"
-          onClick={onUpdate}
-          style={{ fontSize: 13 }}
-        >
-          Oppdater «{activeClass.name}»
-        </button>
+      {showNewClassModal && (
+        <NewClassModal
+          existingNames={classes.map(c => c.name)}
+          onCreate={handleCreateClass}
+          onClose={() => setShowNewClassModal(false)}
+        />
+      )}
+
+      {/* Save current (unnamed, not-yet-a-class) roster as a new class */}
+      {!activeClass && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 2 }}>
+            Lagre nåværende elevliste
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={newName}
+              onChange={e => { setNewName(e.target.value); setError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleSave(e)}
+              placeholder="Klassenavn, f.eks. 10A…"
+              maxLength={30}
+              style={{ flex: 1 }}
+              disabled={students.length === 0}
+            />
+            <button
+              className="btn-primary"
+              onClick={handleSave}
+              disabled={!newName.trim() || students.length === 0}
+            >
+              Lagre
+            </button>
+          </div>
+          {error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</div>}
+          {students.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+              Legg til elever først
+            </div>
+          )}
+        </div>
       )}
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>

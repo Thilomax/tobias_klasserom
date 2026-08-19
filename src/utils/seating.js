@@ -4,7 +4,7 @@ function pairKey(a, b) {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-function buildUsedPairs(sessions) {
+export function buildUsedPairs(sessions) {
   const pairs = new Set();
   for (const session of sessions) {
     const byGroup = {};

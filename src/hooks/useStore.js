@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { createDefaultDesks, firstEmptyCell, computeGroups } from '../utils/layout.js';
+import { createDefaultDesks, firstEmptyCell, computeGroups, nextGroupColorIndex } from '../utils/layout.js';
 import { assignSeats } from '../utils/seating.js';
 import { loadState, saveState } from '../utils/storage.js';
 
@@ -18,8 +18,19 @@ export function useStore() {
   const [settings, setSettings] = useState({ rows: 5, desksPerGroup: 3 });
   const [classes, setClasses] = useState([]);
   const [activeClassId, setActiveClassId] = useState(null);
+  const [roomTemplates, setRoomTemplates] = useState([]);
   const [initialized, setInitialized] = useState(false);
   const deskCounter = useRef(100);
+
+  // Replaces the room layout wholesale (used when restoring a session's,
+  // class's, or template's saved desks) and keeps the id counter past
+  // whatever ids the new layout brought with it, so new desks never collide.
+  function applyDeskLayout(newDesks, newManualGroups) {
+    setDesks(newDesks.map(d => ({ ...d })));
+    setManualGroups((newManualGroups || []).map(g => ({ ...g })));
+    const ids = newDesks.map(d => parseInt(d.id.replace('d', '')) || 0);
+    deskCounter.current = Math.max(deskCounter.current, 100, ...(ids.length ? ids : [0])) + 1;
+  }
 
   useEffect(() => {
     const saved = loadState(STORAGE_KEY);
@@ -32,6 +43,7 @@ export function useStore() {
       setSettings(saved.settings || { rows: 5, desksPerGroup: 3 });
       setClasses(saved.classes || []);
       setActiveClassId(saved.activeClassId || null);
+      setRoomTemplates(saved.roomTemplates || []);
       const ids = (saved.desks || []).map(d => parseInt(d.id.replace('d', '')) || 0);
       deskCounter.current = Math.max(100, ...ids) + 1;
     } else {
@@ -45,9 +57,20 @@ export function useStore() {
     if (!initialized) return;
     clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(() => {
-      saveState(STORAGE_KEY, { students, desks, sessions, assignment, manualGroups, settings, classes, activeClassId });
+      saveState(STORAGE_KEY, { students, desks, sessions, assignment, manualGroups, settings, classes, activeClassId, roomTemplates });
     }, 300);
-  }, [students, desks, sessions, assignment, manualGroups, settings, classes, activeClassId, initialized]);
+  }, [students, desks, sessions, assignment, manualGroups, settings, classes, activeClassId, roomTemplates, initialized]);
+
+  // Keep the active class's stored roster/history/room layout in sync as
+  // it's edited, so there's no separate manual "save"/"update" step while a
+  // class is active — and the room always reopens the way it was last left
+  // for that class.
+  useEffect(() => {
+    if (!initialized || !activeClassId) return;
+    setClasses(prev => prev.map(c =>
+      c.id === activeClassId ? { ...c, students, sessions, desks, manualGroups } : c
+    ));
+  }, [students, sessions, desks, manualGroups, activeClassId, initialized]);
 
   // ── Students ──────────────────────────────────────────────────────────────
   const addStudent = useCallback((name) => {
@@ -129,6 +152,11 @@ export function useStore() {
       date: new Date().toLocaleDateString('no-NO', { day: '2-digit', month: '2-digit', year: 'numeric' }),
       timestamp: Date.now(),
       assignments: list,
+      // Snapshot the room as it looked for this session, so "Vis" can
+      // restore it — otherwise a later-changed layout leaves the seating
+      // pointing at desks that no longer exist where they used to.
+      desks: desks.map(d => ({ ...d })),
+      manualGroups: manualGroups.map(g => ({ ...g })),
     };
     setSessions(prev => [newSession, ...prev]);
     setAssignment(null);
@@ -142,6 +170,9 @@ export function useStore() {
     if (!session) return;
     const map = {};
     for (const a of session.assignments) map[a.deskId] = a.studentId;
+    // Older sessions saved before layout snapshots existed don't have
+    // `desks` — fall back to leaving the current room layout untouched.
+    if (session.desks) applyDeskLayout(session.desks, session.manualGroups);
     setAssignment(map);
   }, [sessions]);
 
@@ -154,6 +185,31 @@ export function useStore() {
     if (newSettings) setSettings(newSettings);
   }, [settings]);
 
+  // ── Room templates ────────────────────────────────────────────────────────
+  const saveRoomTemplate = useCallback((name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    const snapshot = {
+      id: makeId(),
+      name: trimmed,
+      desks: desks.map(d => ({ ...d })),
+      manualGroups: manualGroups.map(g => ({ ...g })),
+    };
+    setRoomTemplates(prev => [...prev, snapshot]);
+    return true;
+  }, [desks, manualGroups]);
+
+  const loadRoomTemplate = useCallback((id) => {
+    const tpl = roomTemplates.find(t => t.id === id);
+    if (!tpl) return;
+    applyDeskLayout(tpl.desks, tpl.manualGroups);
+    setAssignment(null);
+  }, [roomTemplates]);
+
+  const deleteRoomTemplate = useCallback((id) => {
+    setRoomTemplates(prev => prev.filter(t => t.id !== id));
+  }, []);
+
   // ── Manual groups ─────────────────────────────────────────────────────────
   const defineManualGroup = useCallback((deskIds) => {
     if (deskIds.length < 2) return;
@@ -162,7 +218,8 @@ export function useStore() {
       const cleaned = prev
         .map(g => ({ ...g, deskIds: g.deskIds.filter(id => !idSet.has(id)) }))
         .filter(g => g.deskIds.length >= 2);
-      return [...cleaned, { id: `m${makeId()}`, deskIds: [...deskIds].sort() }];
+      const colorIndex = nextGroupColorIndex(cleaned);
+      return [...cleaned, { id: `m${makeId()}`, deskIds: [...deskIds].sort(), colorIndex }];
     });
   }, []);
 
@@ -188,18 +245,15 @@ export function useStore() {
   const saveClass = useCallback((name) => {
     const trimmed = name.trim();
     if (!trimmed) return false;
-    const snapshot = { id: makeId(), name: trimmed, students: [...students], sessions: [...sessions] };
+    const snapshot = {
+      id: makeId(), name: trimmed,
+      students: [...students], sessions: [...sessions],
+      desks: desks.map(d => ({ ...d })), manualGroups: manualGroups.map(g => ({ ...g })),
+    };
     setClasses(prev => [...prev, snapshot]);
     setActiveClassId(snapshot.id);
     return true;
-  }, [students, sessions]);
-
-  const updateClass = useCallback(() => {
-    if (!activeClassId) return;
-    setClasses(prev => prev.map(c =>
-      c.id === activeClassId ? { ...c, students: [...students], sessions: [...sessions] } : c
-    ));
-  }, [activeClassId, students, sessions]);
+  }, [students, sessions, desks, manualGroups]);
 
   const loadClass = useCallback((id) => {
     const cls = classes.find(c => c.id === id);
@@ -208,6 +262,9 @@ export function useStore() {
     setSessions(cls.sessions);
     setAssignment(null);
     setActiveClassId(id);
+    // Older classes saved before layout snapshots existed don't have
+    // `desks` — fall back to leaving the current room layout untouched.
+    if (cls.desks) applyDeskLayout(cls.desks, cls.manualGroups);
   }, [classes]);
 
   const deleteClass = useCallback((id) => {
@@ -215,16 +272,37 @@ export function useStore() {
     if (activeClassId === id) setActiveClassId(null);
   }, [activeClassId]);
 
+  // Creates and activates a class from a roster assembled up front (see
+  // NewClassModal), rather than editing the currently active class's roster
+  // in place — so it always starts with its own blank history, and can
+  // never inherit whatever an unrelated previously-active class had saved.
+  const startNewClass = useCallback((name, roster = []) => {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    const snapshot = {
+      id: makeId(), name: trimmed,
+      students: [...roster], sessions: [],
+      desks: desks.map(d => ({ ...d })), manualGroups: manualGroups.map(g => ({ ...g })),
+    };
+    setClasses(prev => [...prev, snapshot]);
+    setStudents([...roster]);
+    setAssignment(null);
+    setSessions([]);
+    setActiveClassId(snapshot.id);
+    return true;
+  }, [desks, manualGroups]);
+
   const activeClass = classes.find(c => c.id === activeClassId) || null;
 
   return {
     students, desks, sessions, assignment, manualGroups, settings,
-    classes, activeClassId, activeClass,
+    classes, activeClassId, activeClass, roomTemplates,
     addStudent, removeStudent,
     addDeskAt, removeDesk, moveDeskToCell,
     doAssignSeats, clearAssignment, saveSession, deleteSession, clearAllSessions, loadSession,
     resetLayout, swapStudents,
     defineManualGroup, removeManualGroups,
-    saveClass, updateClass, loadClass, deleteClass,
+    saveClass, loadClass, deleteClass, startNewClass,
+    saveRoomTemplate, loadRoomTemplate, deleteRoomTemplate,
   };
 }

@@ -62,13 +62,32 @@ export function computeGroups(desks, manualGroups = []) {
   return groups;
 }
 
-// Stable color per group id, used to outline manually defined groups
-const GROUP_COLORS = ['#7C5CFC', '#E8590C', '#0CA678', '#1971C2', '#D6336C', '#F08C00', '#5F3DC4'];
+// Colors used to outline manually defined groups. Assigned by index (see
+// nextGroupColorIndex) rather than hashing the group id, so that groups
+// visible on screen at the same time never end up with the same color —
+// a hash can collide, an explicit "first free slot" pick cannot.
+const GROUP_COLORS = [
+  '#7C5CFC', '#E8590C', '#0CA678', '#1971C2', '#D6336C', '#F08C00', '#5F3DC4',
+  '#2B8A3E', '#E03131', '#0B7285', '#C2255C', '#845EF7', '#F76707', '#1864AB',
+];
 
+export function colorForGroupIndex(index) {
+  return GROUP_COLORS[index % GROUP_COLORS.length];
+}
+
+// Legacy fallback for manual groups saved before colorIndex existed
 export function colorForGroupId(id) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
   return GROUP_COLORS[hash % GROUP_COLORS.length];
+}
+
+// First color index not currently used by any of the given groups
+export function nextGroupColorIndex(groups) {
+  const used = new Set(groups.map(g => g.colorIndex).filter(i => i != null));
+  let i = 0;
+  while (used.has(i)) i++;
+  return i;
 }
 
 export function createDefaultDesks(rows = 5, desksPerGroup = 3) {
